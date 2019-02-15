@@ -22,7 +22,7 @@ import tensorflow as tf
 import util
 
 
-class Son2Img(object):
+class Sat2Seg(object):
     """...
 
     ...

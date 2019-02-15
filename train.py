@@ -23,7 +23,7 @@ import time
 import numpy as np
 import tensorflow as tf
 
-import son2img
+import sat2seg
 import util
 
 FLAGS = tf.flags.FLAGS
@@ -43,7 +43,7 @@ tf.flags.DEFINE_float("learning_rate", 0.0002, "Initial learning rate for Adam o
 tf.flags.DEFINE_float("beta1", 0.5, "Momentum term of Adam optimizer.")
 
 # Task parameters
-tf.flags.DEFINE_integer("num_epochs", 50, "Number of epochs to run for.")
+tf.flags.DEFINE_integer("num_epochs", 100, "Number of epochs to run for.")
 tf.flags.DEFINE_integer("batch_size", 128, "Size of the batch to use.")
 
 # Training options
@@ -57,7 +57,7 @@ tf.flags.DEFINE_integer("report_interval", 1, "The number of steps between repor
 
 
 def train(num_epochs, report_interval):
-    model = son2img.Son2Img(
+    model = sat2seg.Sat2Seg(
         image_width=FLAGS.image_width,
         image_height=FLAGS.image_height,
         genf_dim=FLAGS.num_gen_filters,
@@ -163,7 +163,7 @@ def train(num_epochs, report_interval):
 
 def evaluate(checkpoint_dir, evaluate_dir, batch_size=1):
     # Create the model
-    model = son2img.Son2Img(
+    model = sat2seg.Sat2Seg(
         image_width=FLAGS.image_width,
         image_height=FLAGS.image_height,
         genf_dim=FLAGS.num_gen_filters,
@@ -202,7 +202,7 @@ def evaluate(checkpoint_dir, evaluate_dir, batch_size=1):
 
 def validate(checkpoint_dir, batch_size=1):
     # Create the model
-    model = son2img.Son2Img(
+    model = sat2seg.Sat2Seg(
         image_width=FLAGS.image_width,
         image_height=FLAGS.image_height,
         genf_dim=FLAGS.num_gen_filters,
