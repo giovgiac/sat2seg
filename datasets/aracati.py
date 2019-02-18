@@ -15,6 +15,7 @@ from scipy.misc import imresize
 class Aracati(object):
     def __init__(self, config):
         self.config = config
+        self.idx = 0
 
         # Load Data
         self.sat_data = np.array([self.load_data(file, is_grayscale=False) for file in
@@ -38,13 +39,16 @@ class Aracati(object):
             self.num_images_val = len(self.sat_data_val)
 
     def next_batch(self, batch_size, is_test=False):
-        if is_test:
-            idxs = np.random.choice(self.num_images_val, batch_size, replace=False)
-            yield self.sat_data_val[idxs], self.seg_data_val[idxs]
-        else:
-            idxs = np.random.choice(self.num_images, batch_size, replace=False)
-            yield self.sat_data[idxs], self.seg_data[idxs]
+        batch_idxs = self.num_images_val // batch_size if is_test else self.num_images // batch_size
+        if self.idx == batch_idxs:
+            self.idx = 0
 
+        if is_test:
+            yield self.sat_data_val[self.idx*batch_size:(self.idx+1)*batch_size], \
+                  self.seg_data_val[self.idx*batch_size:(self.idx+1)*batch_size]
+        else:
+            yield self.sat_data[self.idx*batch_size:(self.idx+1)*batch_size], \
+                  self.seg_data[self.idx*batch_size:(self.idx+1)*batch_size]
 
     @staticmethod
     def load_data(path, width=256, height=256, is_grayscale=False):

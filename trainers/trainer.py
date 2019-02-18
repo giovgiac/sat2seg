@@ -32,20 +32,34 @@ class Trainer(BaseTrainer):
     def train_epoch(self):
         loop = tqdm(range(self.data.num_images // self.config.batch_size))
         errs = []
+        errs_val = []
 
         for _ in loop:
             err = self.train_step()
             errs.append(err)
 
+            self.data.idx += 1
             loop.set_description("Epoch [{}/{}] -- loss {:.6f}".format(self.model.epoch.eval(self.session),
                                                                        self.config.num_epochs,
                                                                        err))
         err = np.mean(errs)
+        self.data.idx = 0
 
-        batch_x_val, batch_y_val = next(self.data.next_batch(self.config.batch_size, is_test=True))
-        feed_dict = {self.model.x: batch_x_val, self.model.y: batch_y_val, K.learning_phase(): 0}
-        err_val, fake, real, sat = self.session.run([self.model.cross_entropy,
+        fake = None
+        real = None
+        sat = None
+        for _ in range(self.data.num_images_val // self.config.batch_size):
+            batch_x_val, batch_y_val = next(self.data.next_batch(self.config.batch_size, is_test=True))
+            feed_dict = {self.model.x: batch_x_val, self.model.y: batch_y_val, K.learning_phase(): 0}
+
+            err, fake, real, sat = self.session.run([self.model.cross_entropy,
                                                      self.model.fn, self.model.y, self.model.x], feed_dict=feed_dict)
+            errs_val.append(err)
+            self.data.idx += 1
+
+        self.data.idx = 0
+
+        err_val = np.mean(errs_val)
 
         it = self.model.global_step.eval(self.session)
 
