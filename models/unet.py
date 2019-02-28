@@ -21,6 +21,13 @@ class Unet(BaseModel):
         self.cross_entropy = None
         self.fn = None
         self.train_step = None
+
+        self.radius = self.config.affinity_radius
+        self.radius_mask = None
+
+        #first layers for affinity                 
+        self.conv1 = None
+        self.conv2 = None
         self.gen_filters = self.config.gen_filters
 
         self.input_shape = tf.TensorShape([self.config.image_height,
@@ -34,6 +41,16 @@ class Unet(BaseModel):
         self.build_model(1 if self.is_evaluating else self.config.batch_size)
         self.init_saver()
 
+    def affinity_branch(self):
+        stacked = tf.concat([self.x, self.conv1, self.conv2], axis=3)
+        mult_dims = self.config.image_width * self.config.image_height
+        slim_stacked = tf.reshape(stacked, [self.config.batch_size, mult_dims, self.config.output_channels + self.config.input_channels + 2*self.config.gen_filters])
+        expanded = tf.tile(tf.expand_dims(slim_stacked, 2), [1,1,mult_dims,1])
+        expanded_t = tf.transpose(expanded, perm=[0,2,1,3])
+        pairwise_l1 = tf.abs(expanded - expanded_t)
+        pairwise_l1 *= self.radius_mask#TOOD(Rael): Make radius mask
+        
+
     def build_model(self, batch_size):
         self.x = tf.placeholder(tf.float32, shape=[batch_size] + self.input_shape.as_list())
         self.y = tf.placeholder(tf.float32, shape=[batch_size] + self.output_shape.as_list())
@@ -44,10 +61,12 @@ class Unet(BaseModel):
             # First Convolution
             e1 = Conv2D(filters=self.gen_filters, kernel_size=(3, 3), padding='same')(self.x)
             e1 = ReLU()(e1)
+            self.conv1 = e1
 
             # Second Convolution
             e1 = Conv2D(filters=self.gen_filters, kernel_size=(3, 3), padding='same')(e1)
             e1 = ReLU()(e1)
+            self.conv2 = e2
 
         # Max Pool
         e2 = MaxPool2D(padding='same')(e1)
