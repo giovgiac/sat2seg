@@ -19,15 +19,30 @@ class Unet(BaseModel):
         self.x = None
         self.y = None
         self.cross_entropy = None
+        self.euclidean_loss = None
         self.fn = None
         self.train_step = None
 
         self.radius = self.config.affinity_radius
-        self.radius_mask = None
+        #building mask for sparse pixelwise distances within radius
+        self.radius_mask = np.zeros([
+            self.config.batch_size,
+            self.config.image_height * self.config.image_width,
+            self.config.image_height * self.config.image_width,
+            self.config.input_channels], dtype=np.float32)
+
+        for i in range(self.config.image_height * self.config.image_width):
+            pixi = (i / self.config.image_height, i % self.config.image_width)
+            for j in range(self.config.image_height * self.config.image_width):
+                pixj = (j / self.config.image_height, j % self.config.image_width)
+                pixj = pixj[1], pixj[0]
+                if ((pixj[0] - pix[0])**2 + (pixj[1] -pix[1])**2)**.5 <= self.radius:
+                    self.radius_mask[:i,j,:] = 1
 
         #first layers for affinity                 
         self.conv1 = None
         self.conv2 = None
+
         self.gen_filters = self.config.gen_filters
 
         self.input_shape = tf.TensorShape([self.config.image_height,
@@ -41,14 +56,27 @@ class Unet(BaseModel):
         self.build_model(1 if self.is_evaluating else self.config.batch_size)
         self.init_saver()
 
-    def affinity_branch(self):
+    def affinity_branch(self, batch_size):
         stacked = tf.concat([self.x, self.conv1, self.conv2], axis=3)
         mult_dims = self.config.image_width * self.config.image_height
-        slim_stacked = tf.reshape(stacked, [self.config.batch_size, mult_dims, self.config.output_channels + self.config.input_channels + 2*self.config.gen_filters])
+        slim_stacked = tf.reshape(stacked, [batch_size, mult_dims, self.config.input_channels + 2*self.config.gen_filters])
         expanded = tf.tile(tf.expand_dims(slim_stacked, 2), [1,1,mult_dims,1])
         expanded_t = tf.transpose(expanded, perm=[0,2,1,3])
         pairwise_l1 = tf.abs(expanded - expanded_t)
-        pairwise_l1 *= self.radius_mask#TOOD(Rael): Make radius mask
+        pairwise_l1 *= self.radius_mask
+        affinity_conv = Conv2D(filters=1, kernel_size=(1,1), padding='same')(pairwise_l1)
+        affinity_conv = keras.activations.exponential(affinity_conv)
+
+        #generating pairwise_l1 ground truth
+        slim_y = tf.reshape(self.y, [batch_size, mult_dims, self.output_channels])
+        expanded = tf.tile(tf.expand_dims(slim_y, 2), [1,1,mult_dims,1])
+        expanded_t = tf.transpose(expanded, perm=[0,2,1,3])
+        affinity_gt = (expanded == expanded_t)
+        affinity_gt = tf.reduce_prod(affinity_gt, 3) #if all 3 channels match, affinity is set to 1
+        affinity_gt *= self.radius_mask
+        ####
+
+        self.euclidean_loss = K.sqrt(K.sum(K.square(affinity_gt - affinity_conv), axis=-1))
         
 
     def build_model(self, batch_size):
