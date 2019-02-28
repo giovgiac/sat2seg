@@ -72,12 +72,26 @@ class Unet(BaseModel):
         expanded = tf.tile(tf.expand_dims(slim_y, 2), [1,1,mult_dims,1])
         expanded_t = tf.transpose(expanded, perm=[0,2,1,3])
         affinity_gt = (expanded == expanded_t)
-        affinity_gt = tf.reduce_prod(affinity_gt, 3) #if all 3 channels match, affinity is set to 1
+        affinity_gt = tf.reduce_prod(affinity_gt, 3) #if all output channels match, affinity is set to 1
         affinity_gt *= self.radius_mask
         ####
 
         self.euclidean_loss = K.sqrt(K.sum(K.square(affinity_gt - affinity_conv), axis=-1))
-        
+        return affinity_conv
+
+    def random_walk_layer(self, segmentation, affinity, batch_size):
+        segmentation = tf.reshape(segmentation, [batch_size, self.image_height * self.image_width,
+                                                 self.output_channels])
+        affinity = tf.contrib.layers.dense_to_sparse(affinity)
+        walk = None
+        if(self.is_evaluating): #walk to convergence
+            pass #TODO: walk for eval
+        else: #walk once
+            walk = tf.sparse.sparse_dense_matmul(affinity, segmentation)
+        walk = tf.sparse.to_dense(walk)
+        walk = tf.reshape(walk, [batch_size] + self.output_shape.as_list())
+        return walk
+
 
     def build_model(self, batch_size):
         self.x = tf.placeholder(tf.float32, shape=[batch_size] + self.input_shape.as_list())
