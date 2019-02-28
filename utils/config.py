@@ -24,6 +24,8 @@ tf.flags.DEFINE_integer("image_width", 256, "Width of the images to run through 
 tf.flags.DEFINE_integer("max_to_keep", 3, "Maximum number of checkpoints to keep.")
 tf.flags.DEFINE_integer("num_epochs", 100, "Number of epochs to execute the network for.")
 tf.flags.DEFINE_integer("output_channels", 3, "Number of channels in the output images.")
+tf.flags.DEFINE_integer("affinity_radius", 40, "Radius in pixels to consider for affinity.")
+tf.flags.DEFINE_float("rwn_tradeoff_alpha", .01, "Tradeoff parameter for the random walk.")
 tf.flags.DEFINE_float("learning_rate", 0.0002, "Initial learning rate for the optimizer.")
 
 FLAGS = tf.flags.FLAGS

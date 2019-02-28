@@ -30,6 +30,11 @@ class Unet(BaseModel):
             self.config.image_height * self.config.image_width,
             self.config.image_height * self.config.image_width,
             self.config.input_channels], dtype=np.float32)
+        self.identity = np.identity(self.config.image_height * self.config.image_width, dtype=np.float32)
+        self.identity = np.expand_dims(self.identity, 0)
+        self.identity = np.tile(self.identity, [batch_size, 1, 1])
+        self.identity = tf.constant(self.identity)
+
 
         for i in range(self.config.image_height * self.config.image_width):
             pixi = (i / self.config.image_height, i % self.config.image_width)
@@ -82,13 +87,14 @@ class Unet(BaseModel):
     def random_walk_layer(self, segmentation, affinity, batch_size):
         segmentation = tf.reshape(segmentation, [batch_size, self.image_height * self.image_width,
                                                  self.output_channels])
-        affinity = tf.contrib.layers.dense_to_sparse(affinity)
         walk = None
         if(self.is_evaluating): #walk to convergence
-            pass #TODO: walk for eval
+            alpha = self.config.rwn_tradeoff_alpha
+            walk = tf.matmul(tf.linalg.inv(self.identity - alpha * affinity), segmentation)
         else: #walk once
+            affinity = tf.contrib.layers.dense_to_sparse(affinity)
             walk = tf.sparse.sparse_dense_matmul(affinity, segmentation)
-        walk = tf.sparse.to_dense(walk)
+            walk = tf.sparse.to_dense(walk)
         walk = tf.reshape(walk, [batch_size] + self.output_shape.as_list())
         return walk
 
