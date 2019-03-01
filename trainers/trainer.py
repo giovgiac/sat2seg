@@ -33,16 +33,19 @@ class Trainer(BaseTrainer):
         loop = tqdm(range(self.data.num_images // self.config.batch_size))
         errs = []
         errs_val = []
+        errs_aff = []
 
         for _ in loop:
-            err = self.train_step()
+            err, err_aff = self.train_step()
             errs.append(err)
+            errs_aff.append(err_aff)
 
             self.data.idx += 1
-            loop.set_description("Epoch [{}/{}] -- loss {:.6f}".format(self.model.epoch.eval(self.session),
+            loop.set_description("Epoch [{}/{}] -- loss {:.6f} -- loss_affinity {:.6f}".format(self.model.epoch.eval(self.session),
                                                                        self.config.num_epochs,
-                                                                       err))
+                                                                       err, err_aff))
         err = np.mean(errs)
+        err_aff = np.mean(errs_aff)
         self.data.idx = 0
 
         fake = None
@@ -65,6 +68,7 @@ class Trainer(BaseTrainer):
 
         summaries_dict = {
             "train_loss": err,
+            "affinity_loss": err_aff,
         }
 
         summaries_dict_val = {
@@ -84,4 +88,4 @@ class Trainer(BaseTrainer):
 
         err_aff = self.session.run([self.model.euclidean_loss], feed_dict=feed_dict)
         _, err = self.session.run([self.model.train_step, self.model.cross_entropy], feed_dict=feed_dict)
-        return err
+        return err, err_aff
