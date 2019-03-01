@@ -82,5 +82,6 @@ class Trainer(BaseTrainer):
         batch_x, batch_y = next(self.data.next_batch(self.config.batch_size))
         feed_dict = {self.model.x: batch_x, self.model.y: batch_y, K.learning_phase(): 1}
 
-        _, err= self.session.run([self.model.train_step, self.model.cross_entropy], feed_dict=feed_dict)
+        err_aff = self.session.run([self.model.euclidean_loss], feed_dict=feed_dict)
+        _, err = self.session.run([self.model.train_step, self.model.cross_entropy], feed_dict=feed_dict)
         return err

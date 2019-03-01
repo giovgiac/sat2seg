@@ -22,6 +22,7 @@ class Unet(BaseModel):
         self.euclidean_loss = None
         self.fn = None
         self.train_step = None
+        self.affinity_train_step = None
 
         self.radius = self.config.affinity_radius
         #building mask for sparse pixelwise distances within radius
@@ -115,6 +116,14 @@ class Unet(BaseModel):
             e1 = Conv2D(filters=self.gen_filters, kernel_size=(3, 3), padding='same')(e1)
             e1 = ReLU()(e1)
             self.conv2 = e2
+
+        #Affinity branch
+        with K.name_scope("Affinity"):
+            affinity = self.affinity_branch(batch_size)
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
+            with tf.control_dependencies(update_ops):
+                self.train_step = tf.train.AdamOptimizer(self.config.learning_rate).minimize(self.euclidean_loss)
 
         # Max Pool
         e2 = MaxPool2D(padding='same')(e1)
@@ -233,6 +242,9 @@ class Unet(BaseModel):
         # Final Convolution
         self.fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=(1, 1), padding='same')(d4)
         self.fn = Softmax()(self.fn)
+
+        # Random Walk
+            self.fn = self.random_walk_layer(self.fn, affinity, batch_size)
 
         with K.name_scope("loss"):
             self.cross_entropy = tf.reduce_mean(categorical_crossentropy(self.y, self.fn))
