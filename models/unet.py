@@ -5,6 +5,8 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
+import numpy as np
+import keras
 
 from base.base_model import BaseModel
 from keras import backend as K
@@ -26,24 +28,36 @@ class Unet(BaseModel):
 
         self.radius = self.config.affinity_radius
         #building mask for sparse pixelwise distances within radius
-        self.radius_mask = np.zeros([
-            self.config.batch_size,
-            self.config.image_height * self.config.image_width,
-            self.config.image_height * self.config.image_width,
-            self.config.input_channels], dtype=np.float32)
-        self.identity = np.identity(self.config.image_height * self.config.image_width, dtype=np.float32)
-        self.identity = np.expand_dims(self.identity, 0)
-        self.identity = np.tile(self.identity, [batch_size, 1, 1])
-        self.identity = tf.constant(self.identity)
-
-
+        #self.radius_mask = np.zeros([
+        #    1, #self.config.batch_size,
+        #    self.config.image_height * self.config.image_width,
+        #    self.config.image_height * self.config.image_width,
+        #    self.config.input_channels], dtype=np.float32)
+        mask_indices = []
         for i in range(self.config.image_height * self.config.image_width):
             pixi = (i / self.config.image_height, i % self.config.image_width)
-            for j in range(self.config.image_height * self.config.image_width):
-                pixj = (j / self.config.image_height, j % self.config.image_width)
-                pixj = pixj[1], pixj[0]
-                if ((pixj[0] - pix[0])**2 + (pixj[1] -pix[1])**2)**.5 <= self.radius:
-                    self.radius_mask[:i,j,:] = 1
+            js = np.arange(self.config.image_height * self.config.image_width)
+            pixj0 = js % self.config.image_width
+            pixj1 = js / self.config.image_height
+            dists = np.sqrt(np.square(pixj0 - pixi[0]) + np.square(pixj1 - pixi[1]))
+            js = np.argwhere(dists <= self.radius)
+            for j in js:
+                j = j[0]
+                mask_indices.append([0, i, j, 0])
+            #for j in range(self.config.image_height * self.config.image_width):
+            #    pixj = (j / self.config.image_height, j % self.config.image_width)
+            #    pixj = pixj[1], pixj[0]
+            #    if np.linalg.norm([pixi, pixj]) <= self.radius:
+            #        mask_indices.append([0, i, j, 0]) #self.radius_mask[:,i,j,:] = 1
+        self.radius_mask = tf.sparse.SparseTensor(indices=mask_indices, values=[1.0]*len(mask_indices), dense_shape=[1,
+            self.config.image_height * self.config.image_width,
+            self.config.image_height * self.config.image_width,
+            1])
+        mask_indices = None
+        self.identity = tf.eye(self.config.image_height * self.config.image_width, dtype=np.float32)
+        self.identity = tf.expand_dims(self.identity, 0)
+        self.identity = tf.tile(self.identity, [self.config.batch_size, 1, 1])
+
 
         #first layers for affinity                 
         self.conv1 = None
@@ -58,7 +72,7 @@ class Unet(BaseModel):
         self.output_shape = tf.TensorShape([self.config.image_height,
                                             self.config.image_width,
                                             self.config.output_channels])
-
+        
         self.build_model(1 if self.is_evaluating else self.config.batch_size)
         self.init_saver()
 
@@ -69,33 +83,45 @@ class Unet(BaseModel):
         expanded = tf.tile(tf.expand_dims(slim_stacked, 2), [1,1,mult_dims,1])
         expanded_t = tf.transpose(expanded, perm=[0,2,1,3])
         pairwise_l1 = tf.abs(expanded - expanded_t)
+        print(pairwise_l1)
+        self.radius_mask = tf.sparse.to_dense(self.radius_mask)
         pairwise_l1 *= self.radius_mask
+        #pairwise_l1 = tf.sparse.reorder(pairwise_l1)
+        #pairwise_l1 = tf.sparse.to_dense(pairwise_l1)
+        print(pairwise_l1)
         affinity_conv = Conv2D(filters=1, kernel_size=(1,1), padding='same')(pairwise_l1)
         affinity_conv = keras.activations.exponential(affinity_conv)
+        print(affinity_conv)
 
         #generating pairwise_l1 ground truth
-        slim_y = tf.reshape(self.y, [batch_size, mult_dims, self.output_channels])
+        slim_y = tf.reshape(self.y, [batch_size, mult_dims, self.config.output_channels])
         expanded = tf.tile(tf.expand_dims(slim_y, 2), [1,1,mult_dims,1])
         expanded_t = tf.transpose(expanded, perm=[0,2,1,3])
-        affinity_gt = (expanded == expanded_t)
-        affinity_gt = tf.reduce_prod(affinity_gt, 3) #if all output channels match, affinity is set to 1
+        affinity_gt = tf.cast(tf.equal(expanded, expanded_t), tf.float32)
+        affinity_gt = tf.reduce_prod(affinity_gt, 3, keepdims=True) #if all output channels match, affinity is set to 1
         affinity_gt *= self.radius_mask
+        #affinity_gt = tf.sparse.to_dense(affinity_gt)
+        self.radius_mask = tf.contrib.layers.dense_to_sparse(self.radius_mask) #return to sparse form to save memory
         ####
-
-        self.euclidean_loss = K.sqrt(K.sum(K.square(affinity_gt - affinity_conv), axis=-1))
+        self.euclidean_loss = affinity_gt - affinity_conv
+        self.euclidean_loss = K.square(self.euclidean_loss)
+        self.euclidean_loss = K.sum(self.euclidean_loss, axis=[1, 2, 3])
+        self.euclidean_loss = K.sqrt(self.euclidean_loss)
+        print(self.euclidean_loss)
+        affinity_conv = tf.squeeze(affinity_conv, 3)
         return affinity_conv
 
     def random_walk_layer(self, segmentation, affinity, batch_size):
-        segmentation = tf.reshape(segmentation, [batch_size, self.image_height * self.image_width,
-                                                 self.output_channels])
+        segmentation = tf.reshape(segmentation, [batch_size, self.config.image_height * self.config.image_width,
+                                                 self.config.output_channels])
         walk = None
         if(self.is_evaluating): #walk to convergence
             alpha = self.config.rwn_tradeoff_alpha
             walk = tf.matmul(tf.linalg.inv(self.identity - alpha * affinity), segmentation)
         else: #walk once
-            affinity = tf.contrib.layers.dense_to_sparse(affinity)
-            walk = tf.sparse.sparse_dense_matmul(affinity, segmentation)
-            walk = tf.sparse.to_dense(walk)
+            #affinity = tf.contrib.layers.dense_to_sparse(affinity)
+            walk = tf.linalg.matmul(affinity, segmentation)#walk = tf.sparse.sparse_dense_matmul(affinity, segmentation)
+            #walk = tf.sparse.to_dense(walk)
         walk = tf.reshape(walk, [batch_size] + self.output_shape.as_list())
         return walk
 
@@ -115,7 +141,7 @@ class Unet(BaseModel):
             # Second Convolution
             e1 = Conv2D(filters=self.gen_filters, kernel_size=(3, 3), padding='same')(e1)
             e1 = ReLU()(e1)
-            self.conv2 = e2
+            self.conv2 = e1
 
         #Affinity branch
         with K.name_scope("Affinity"):
@@ -244,7 +270,7 @@ class Unet(BaseModel):
         self.fn = Softmax()(self.fn)
 
         # Random Walk
-            self.fn = self.random_walk_layer(self.fn, affinity, batch_size)
+        self.fn = self.random_walk_layer(self.fn, affinity, batch_size)
 
         with K.name_scope("loss"):
             self.cross_entropy = tf.reduce_mean(categorical_crossentropy(self.y, self.fn))
