@@ -54,9 +54,10 @@ class Unet(BaseModel):
             self.config.image_height * self.config.image_width,
             1])
         mask_indices = None
-        self.identity = tf.eye(self.config.image_height * self.config.image_width, dtype=np.float32)
-        self.identity = tf.expand_dims(self.identity, 0)
-        self.identity = tf.tile(self.identity, [self.config.batch_size, 1, 1])
+        #self.identity = tf.eye(self.config.image_height * self.config.image_width, dtype=np.float32)
+        #self.identity = tf.expand_dims(self.identity, 0)
+        #self.identity = tf.tile(self.identity, [self.config.batch_size, 1, 1])
+        self.identity = tf.sparse.eye(self.config.image_height * self.config.image_width)
 
 
         #first layers for affinity                 
