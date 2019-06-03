@@ -18,15 +18,11 @@ class Aracati(object):
         self.idx = 0
 
         # Load Data
-        self.sat_data = np.array([self.load_data(file, is_grayscale=False) for file in
-                                  sorted(glob.glob("./datasets/aracati/train/input/*.png"))])
-        self.seg_data = np.array([self.load_data(file, is_grayscale=False) for file in
-                                  sorted(glob.glob("./datasets/aracati/train/gt/*.png"))])
+        self.sat_data = np.array(sorted(glob.glob("./datasets/aracati/train/input/*.png")))
+        self.seg_data = np.array(sorted(glob.glob("./datasets/aracati/train/gt/*.png")))
 
-        self.sat_data_val = np.array([self.load_data(file, is_grayscale=False) for file in
-                                      sorted(glob.glob("./datasets/aracati/validation/input/*.png"))])
-        self.seg_data_val = np.array([self.load_data(file, is_grayscale=False) for file in
-                                      sorted(glob.glob("./datasets/aracati/validation/gt/*.png"))])
+        self.sat_data_val = np.array(sorted(glob.glob("./datasets/aracati/validation/input/*.png")))
+        self.seg_data_val = np.array(sorted(glob.glob("./datasets/aracati/validation/gt/*.png")))
 
         if len(self.sat_data) != len(self.seg_data):
             tf.logging.error("Dataset has unequal number of satellite and segmentation training images")
@@ -38,17 +34,17 @@ class Aracati(object):
             self.num_images = len(self.sat_data)
             self.num_images_val = len(self.sat_data_val)
 
-    def next_batch(self, batch_size, is_test=False):
-        batch_idxs = self.num_images_val // batch_size if is_test else self.num_images // batch_size
+    def next_batch(self, batch_size, is_validation=False):
+        batch_idxs = self.num_images_val // batch_size if is_validation else self.num_images // batch_size
         if self.idx == batch_idxs:
             self.idx = 0
 
-        if is_test:
-            yield self.sat_data_val[self.idx*batch_size:(self.idx+1)*batch_size], \
-                  self.seg_data_val[self.idx*batch_size:(self.idx+1)*batch_size]
+        if is_validation:
+            yield [self.load_data(file, is_grayscale=False) for file in self.sat_data_val[self.idx*batch_size:(self.idx+1)*batch_size]], \
+                  [self.load_data(file, is_grayscale=False) for file in self.seg_data_val[self.idx*batch_size:(self.idx+1)*batch_size]]
         else:
-            yield self.sat_data[self.idx*batch_size:(self.idx+1)*batch_size], \
-                  self.seg_data[self.idx*batch_size:(self.idx+1)*batch_size]
+            yield [self.load_data(file, is_grayscale=False) for file in self.sat_data[self.idx*batch_size:(self.idx+1)*batch_size]], \
+                  [self.load_data(file, is_grayscale=False) for file in self.seg_data[self.idx*batch_size:(self.idx+1)*batch_size]]
 
     @staticmethod
     def load_data(path, width=256, height=256, is_grayscale=False):
@@ -63,5 +59,7 @@ class Aracati(object):
 
     @staticmethod
     def save_data(path, idx, data):
-        imsave("{}/test_{:04d}.png".format(path, idx), data[0])
-
+        img = np.where(np.equal(np.max(data[0], axis=2, keepdims=True), data[0]),
+                       1.0,
+                       0.0)
+        imsave("{}/test_{:05d}.png".format(path, idx), img)

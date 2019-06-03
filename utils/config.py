@@ -15,14 +15,15 @@ tf.flags.DEFINE_string("name", "auto",
                        "Default value is auto, which is an algorithm that automatically generates a name.")
 tf.flags.DEFINE_string("checkpoint_dir", "", "")
 tf.flags.DEFINE_string("evaluate_dir", "", "")
+tf.flags.DEFINE_string("presentation_dir", "", "")
 tf.flags.DEFINE_string("summary_dir", "", "")
 tf.flags.DEFINE_integer("batch_size", 8, "Batch size to use for the network.")
 tf.flags.DEFINE_integer("gen_filters", 64, "Parameter that scales the size of the network.")
 tf.flags.DEFINE_integer("input_channels", 3, "Number of channels in the input images.")
 tf.flags.DEFINE_integer("image_height", 256, "Height of the images to run through the network.")
 tf.flags.DEFINE_integer("image_width", 256, "Width of the images to run through the network.")
-tf.flags.DEFINE_integer("max_to_keep", 3, "Maximum number of checkpoints to keep.")
-tf.flags.DEFINE_integer("num_epochs", 100, "Number of epochs to execute the network for.")
+tf.flags.DEFINE_integer("max_to_keep", 2, "Maximum number of checkpoints to keep.")
+tf.flags.DEFINE_integer("num_epochs", 32, "Number of epochs to execute the network for.")
 tf.flags.DEFINE_integer("output_channels", 3, "Number of channels in the output images.")
 tf.flags.DEFINE_float("learning_rate", 0.0002, "Initial learning rate for the optimizer.")
 
@@ -41,6 +42,7 @@ def process_config():
         config.name = time.strftime("%Y-%m-%d_%H:%M")
 
     config.checkpoint_dir = os.path.join("./executions", config.name, "checkpoint/")
+    config.presentation_dir = os.path.join("./executions", config.name, "presentations/")
     config.evaluate_dir = os.path.join("./executions", config.name, "results/")
     config.summary_dir = os.path.join("./executions", config.name, "summary/")
 

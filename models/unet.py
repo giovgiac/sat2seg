@@ -16,13 +16,18 @@ class Unet(BaseModel):
     def __init__(self, config, is_evaluating=False):
         super(Unet, self).__init__(config, is_evaluating)
 
+        # Inputs
         self.x = None
         self.y = None
+
+        # Losses
         self.cross_entropy = None
+
+        # Outputs
         self.fn = None
         self.train_step = None
+        
         self.gen_filters = self.config.gen_filters
-
         self.input_shape = tf.TensorShape([self.config.image_height,
                                            self.config.image_width,
                                            self.config.input_channels])
@@ -39,7 +44,6 @@ class Unet(BaseModel):
         self.y = tf.placeholder(tf.float32, shape=[batch_size] + self.output_shape.as_list())
 
         # Network Architecture
-
         with K.name_scope("Encode1"):
             # First Convolution
             e1 = Conv2D(filters=self.gen_filters, kernel_size=(3, 3), padding='same')(self.x)
@@ -60,6 +64,7 @@ class Unet(BaseModel):
             # Second Convolution
             e2 = Conv2D(filters=self.gen_filters * 2, kernel_size=(3, 3), padding='same')(e2)
             e2 = ReLU()(e2)
+            e2 = tf.contrib.layers.batch_norm(e2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
         # Max Pool
         e3 = MaxPool2D(padding='same')(e2)
@@ -72,6 +77,7 @@ class Unet(BaseModel):
             # Second Convolution
             e3 = Conv2D(filters=self.gen_filters * 4, kernel_size=(3, 3), padding='same')(e3)
             e3 = ReLU()(e3)
+            e3 = tf.contrib.layers.batch_norm(e3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
         # Max Pool
         e4 = MaxPool2D(padding='same')(e3)
@@ -84,6 +90,7 @@ class Unet(BaseModel):
             # Second Convolution
             e4 = Conv2D(filters=self.gen_filters * 8, kernel_size=(3, 3), padding='same')(e4)
             e4 = ReLU()(e4)
+            e4 = tf.contrib.layers.batch_norm(e4, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
         # Max Pool
         e5 = MaxPool2D(padding='same')(e4)
@@ -96,6 +103,7 @@ class Unet(BaseModel):
             # Second Convolution
             e5 = Conv2D(filters=self.gen_filters * 16, kernel_size=(3, 3), padding='same')(e5)
             e5 = ReLU()(e5)
+            e5 = tf.contrib.layers.batch_norm(e5, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
         with K.name_scope("Decode1"):
             # Transpose Convolution
@@ -111,6 +119,7 @@ class Unet(BaseModel):
             # Second Convolution
             d1 = Conv2D(filters=self.gen_filters * 8, kernel_size=(3, 3), padding='same')(d1)
             d1 = ReLU()(d1)
+            d1 = tf.contrib.layers.batch_norm(d1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
         # Dropout
         d1 = Dropout(rate=0.5)(d1)
@@ -129,6 +138,7 @@ class Unet(BaseModel):
             # Second Convolution
             d2 = Conv2D(filters=self.gen_filters * 4, kernel_size=(3, 3), padding='same')(d2)
             d2 = ReLU()(d2)
+            d2 = tf.contrib.layers.batch_norm(d2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
         # Dropout
         d2 = Dropout(rate=0.5)(d2)
@@ -147,6 +157,7 @@ class Unet(BaseModel):
             # Second Convolution
             d3 = Conv2D(filters=self.gen_filters * 2, kernel_size=(3, 3), padding='same')(d3)
             d3 = ReLU()(d3)
+            d3 = tf.contrib.layers.batch_norm(d3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
         with K.name_scope("Decode4"):
             # Transpose Convolution
@@ -162,6 +173,7 @@ class Unet(BaseModel):
             # Second Convolution
             d4 = Conv2D(filters=self.gen_filters, kernel_size=(3, 3), padding='same')(d4)
             d4 = ReLU()(d4)
+            d4 = tf.contrib.layers.batch_norm(d4, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
         # Final Convolution
         self.fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=(1, 1), padding='same')(d4)

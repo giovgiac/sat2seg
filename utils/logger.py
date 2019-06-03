@@ -24,21 +24,23 @@ class Logger(object):
     def summarize(self, step, summarizer="train", scope="", summaries_dict=None):
         summary_writer = self.summary_writer if summarizer == "train" else self.summary_writer_val
 
-        with tf.variable_scope(scope):
+        with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
             if summaries_dict is not None:
                 summary_list = []
                 for tag, value in summaries_dict.items():
                     if tag not in self.summary_ops:
                         if len(value.shape) <= 1:
-                            self.summary_placeholders[tag] = tf.placeholder("float32", value.shape, name=tag)
+                            self.summary_placeholders[tag] = tf.placeholder("float32",
+                                                                            value.shape,
+                                                                            name=None)
                         else:
                             self.summary_placeholders[tag] = tf.placeholder("float32",
                                                                             [None] + list(value.shape[1:]),
-                                                                            name=tag)
+                                                                            name=None)
                         if len(value.shape) <= 1:
                             self.summary_ops[tag] = tf.summary.scalar(tag, self.summary_placeholders[tag])
                         else:
-                            self.summary_ops[tag] = tf.summary.image(tag, self.summary_placeholders[tag])
+                            self.summary_ops[tag] = tf.summary.image(tag, self.summary_placeholders[tag], max_outputs=6)
 
                     summary_list.append(
                         self.session.run(self.summary_ops[tag], {self.summary_placeholders[tag]: value}))

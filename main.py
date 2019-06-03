@@ -26,7 +26,7 @@ def main(unused_argv):
     except:
         exit(0)
 
-    create_dirs(config, [config.checkpoint_dir, config.evaluate_dir, config.summary_dir])
+    create_dirs(config, [config.checkpoint_dir, config.evaluate_dir, config.presentation_dir, config.summary_dir])
 
     session = tf.Session()
     K.set_session(session)

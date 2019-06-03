@@ -22,7 +22,7 @@ from matplotlib.pyplot import imread, imsave
 
 import numpy as np
 
-EXECUTION_NAME = "2019-02-17_22:03"
+EXECUTION_NAME = "2019-02-20_13:26"
 
 
 def main():
@@ -42,8 +42,8 @@ def main():
         image_fak = scipy.misc.imresize(image_fak, [256, 256])
 
         image_res = np.concatenate((image_sat[:,:,:3], image_fak[:,:,:3], image_rea[:,:,:3]), axis=1)
-        imsave("./executions/{}/presentation/test_{:04d}.png".format(EXECUTION_NAME, i), image_res)
-        print("CONCATENATING: Finished Image {:04d}".format(i))
+        imsave("./executions/{}/presentations/test_{:05d}.png".format(EXECUTION_NAME, i), image_res)
+        print("CONCATENATING: Finished Image {:05d}".format(i))
 
 
 if __name__ == '__main__':
